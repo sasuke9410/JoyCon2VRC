@@ -1,0 +1,12 @@
+[project]
+name = "joycon2vrc"
+version = "0.1.0"
+description = "Nintendo Switch Joy-Con (L) Locomotion System for VRChat"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "hidapi>=0.15.0",
+]
+
+[tool.setuptools]
+py-modules = ["joycon_vrchat", "joycon_vrchat_live", "test_joycon_hid"]

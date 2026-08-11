@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Joy-Con(L) 足踏みVRChat移動システム - フィジビリティ検証ダッシュボード</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="main-header">
+      <div class="brand">
+        <div class="logo-icon">🎮👟</div>
+        <div>
+          <h1>Joycon2VRC Locomotion</h1>
+          <p class="subtitle">Joy-Con(L) 太もも固定 足踏み / サイレントVRChat移動システム</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button id="btnConnect" class="btn btn-primary">
+          <span class="icon">🔌</span> Joy-Con (L) 接続 (WebHID)
+        </button>
+        <button id="btnSimulate" class="btn btn-secondary">
+          <span class="icon">🧪</span> テストシミュレーター起動
+        </button>
+      </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <nav class="tab-nav">
+      <button class="tab-btn active" data-tab="dashboard">📊 リアルタイム検証</button>
+      <button class="tab-btn" data-tab="architecture">🏗️ アーキテクチャ & 仕様</button>
+      <button class="tab-btn" data-tab="algorithm">🧮 歩行検出アルゴリズム</button>
+      <button class="tab-btn" data-tab="osc-guide">🌐 OSC / VRChat連携手順</button>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="content-area">
+      
+      <!-- TAB 1: DASHBOARD -->
+      <section id="tab-dashboard" class="tab-content active">
+        <!-- Top Stats / Indicators -->
+        <div class="grid-cards">
+          <!-- Device Status Card -->
+          <div class="card glass">
+            <div class="card-header">
+              <h3>デバイス状態</h3>
+              <span id="deviceBadge" class="badge badge-offline">未接続</span>
+            </div>
+            <div class="card-body">
+              <div class="stat-row">
+                <span class="label">デバイス名:</span>
+                <span id="deviceName" class="value">なし</span>
+              </div>
+              <div class="stat-row">
+                <span class="label">更新周波数:</span>
+                <span id="sampleRate" class="value">0 Hz</span>
+              </div>
+              <div class="stat-row">
+                <span class="label">動作モード:</span>
+                <span id="currentModeLabel" class="value text-highlight">通常足踏み</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Motion Detection Status -->
+          <div class="card glass">
+            <div class="card-header">
+              <h3>移動判定ステータス</h3>
+              <span id="motionBadge" class="badge badge-stop">STOP</span>
+            </div>
+            <div class="card-body status-center">
+              <div class="speed-gauge-container">
+                <div class="speed-value" id="speedOutputText">0.00</div>
+                <div class="speed-label">OSC Vertical Input (-1.0 ~ 1.0)</div>
+                <div class="progress-bar-bg">
+                  <div id="speedProgressBar" class="progress-bar-fill" style="width: 0%;"></div>
+                </div>
+              </div>
+              <div class="key-preview">
+                <span id="keyW" class="key-cap">W (前進)</span>
+                <span id="keyShift" class="key-cap">Shift (走る)</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Metrics / Cadence -->
+          <div class="card glass">
+            <div class="card-header">
+              <h3>運動メトリクス</h3>
+            </div>
+            <div class="card-body">
+              <div class="metric-box">
+                <div class="metric-value" id="cadenceVal">0 <span class="unit">SPM</span></div>
+                <div class="metric-label">ピッチ (Steps / Min)</div>
+              </div>
+              <div class="stat-row mt-2">
+                <span class="label">太ももピッチ角:</span>
+                <span id="pitchAngleVal" class="value">0.0°</span>
+              </div>
+              <div class="stat-row">
+                <span class="label">動的加速度 A_dyn:</span>
+                <span id="accelDynVal" class="value">0.00 G</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Controls & Canvas Waveform Grid -->
+        <div class="grid-main mt-4">
+          <!-- Control Panel Side -->
+          <div class="card glass controls-sidebar">
+            <h3>⚙️ パラメータ設定 & モード</h3>
+            
+            <div class="form-group">
+              <label class="form-label">検出モード</label>
+              <div class="segmented-control">
+                <button id="modeNormal" class="seg-btn active">👟 通常足踏み</button>
+                <button id="modeSilent" class="seg-btn">🤫 サイレント (静音)</button>
+              </div>
+            </div>
+
+            <div class="form-group mt-3">
+              <label class="form-label">
+                ステップ感度 (Threshold)
+                <span id="lblSensVal" class="slider-val">0.35 G</span>
+              </label>
+              <input type="range" id="sliderSens" min="0.1" max="1.0" step="0.05" value="0.35">
+              <small class="help-text">通常モードの衝撃判定閾値</small>
+            </div>
+
+            <div class="form-group mt-3">
+              <label class="form-label">
+                走行判定ピッチ (Run SPM)
+                <span id="lblRunSpmVal" class="slider-val">140 SPM</span>
+              </label>
+              <input type="range" id="sliderRunSpm" min="90" max="200" step="5" value="140">
+              <small class="help-text">歩き → 走りに切り替わる足踏み速度</small>
+            </div>
+
+            <div class="form-group mt-3">
+              <label class="form-label">
+                サイレント膝曲げ角度閾値
+                <span id="lblSilentAngleVal" class="slider-val">12°</span>
+              </label>
+              <input type="range" id="sliderSilentAngle" min="5" max="30" step="1" value="12">
+              <small class="help-text">静止状態から歩行とみなす太ももの角度変化</small>
+            </div>
+
+            <div class="form-group mt-3">
+              <label class="form-label">ノイズ除去フィルタ (EMA Alpha)</label>
+              <input type="range" id="sliderFilter" min="0.05" max="0.5" step="0.05" value="0.2">
+            </div>
+
+            <div class="simulator-controls mt-4">
+              <h4>🧪 シミュレーター操作</h4>
+              <div class="btn-group">
+                <button id="btnSimWalk" class="btn btn-sm btn-outline">🚶 歩行テスト</button>
+                <button id="btnSimRun" class="btn btn-sm btn-outline">🏃 走行テスト</button>
+                <button id="btnSimSilent" class="btn btn-sm btn-outline">🤫 サイレント</button>
+                <button id="btnSimStop" class="btn btn-sm btn-danger-outline">⏹️ 停止</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Realtime Canvas Plot Side -->
+          <div class="card glass canvas-container">
+            <div class="card-header">
+              <h3>📈 リアルタイム IMU センサー波形</h3>
+              <div class="legend">
+                <span class="legend-item"><span class="dot dot-accel"></span> 動的加速度 A_dyn</span>
+                <span class="legend-item"><span class="dot dot-pitch"></span> 太ももピッチ角 θ</span>
+                <span class="legend-item"><span class="dot dot-trigger"></span> ステップ検出</span>
+              </div>
+            </div>
+            <div class="canvas-wrapper">
+              <canvas id="waveformCanvas"></canvas>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 2: ARCHITECTURE -->
+      <section id="tab-architecture" class="tab-content">
+        <div class="card glass p-4">
+          <h2>🏗️ システムアーキテクチャ & 基本仕様</h2>
+          <p class="mt-2">
+            本システムは、左太ももに固定した任天堂Switchの<strong>Joy-Con (L)</strong> 内蔵6軸センサー (加速度3軸 + ジャイロ3軸) を用いて、
+            ユーザーの「その場足踏み」および「膝の曲げ伸ばし動作」をリアルタイム解析し、VRChat空間内の移動入力へ変換します。
+          </p>
+
+          <div class="arch-diagram mt-4">
+            <div class="arch-box">
+              <div class="arch-title">1. ハードウェア</div>
+              <div class="arch-desc">Joy-Con (L)<br/>太ももバンド固定<br/>Bluetooth 3.0</div>
+            </div>
+            <div class="arch-arrow">➔</div>
+            <div class="arch-box">
+              <div class="arch-title">2. PC入力層</div>
+              <div class="arch-desc">WebHID API / Python HID<br/>Raw 6軸データ受信 (60Hz)</div>
+            </div>
+            <div class="arch-arrow">➔</div>
+            <div class="arch-box highlight-box">
+              <div class="arch-title">3. 信号解析エンジン</div>
+              <div class="arch-desc">相補フィルタ (Pitch角)<br/>衝撃・周波数解析<br/>Stop/Walk/Run 判定</div>
+            </div>
+            <div class="arch-arrow">➔</div>
+            <div class="arch-box">
+              <div class="arch-title">4. VRChat出力層</div>
+              <div class="arch-desc"><strong>OSC:</strong> /input/Vertical (0.0~1.0)<br/><strong>仮想Key:</strong> W / Shift+W</div>
+            </div>
+          </div>
+
+          <div class="specs-grid mt-4">
+            <div class="spec-card">
+              <h4>🎯 対応動作パターン</h4>
+              <ul>
+                <li><strong>通常足踏み（歩き）:</strong> 適度な足上げと着地衝撃 → 低速前進</li>
+                <li><strong>通常足踏み（走り）:</strong> 高速足踏み (140+ SPM) → 高速前進</li>
+                <li><strong>サイレント歩き/走り:</strong> かかとを着地したまま膝の素早い曲げ伸ばしで階下静音移動</li>
+              </ul>
+            </div>
+            <div class="spec-card">
+              <h4>⚡ 低遅延 & 安定性</h4>
+              <ul>
+                <li>WebHID / Direct HID により <strong>応答遅延 &lt; 20ms</strong> を実現</li>
+                <li>相補フィルタ (Complementary Filter) によりセンサーノイズとドリフトを吸収</li>
+                <li>ヒステリシス閾値処理による誤判定・チャタリング防止</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 3: ALGORITHM -->
+      <section id="tab-algorithm" class="tab-content">
+        <div class="card glass p-4">
+          <h2>🧮 歩行検出アルゴリズムの詳細</h2>
+
+          <div class="algo-section mt-3">
+            <h3>1. 通常足踏みモード (Impact & Cadence Algorithm)</h3>
+            <p>太ももの上昇・下降による着地インパクト A_dyn と、ステップ間隔から算出されるピッチ (SPM) をトリガーとします。</p>
+            <div class="code-block">
+// 合成動的加速度の計算 (重力成分除去)
+double A_total = sqrt(Ax*Ax + Ay*Ay + Az*Az);
+double A_dyn = abs(A_total - 1.0); // 1.0G (重力) の差分
+
+// ステップピーク検出
+if (A_dyn > Threshold_Step && (currentTime - lastStepTime) > Min_Step_Interval) {
+    double dt = currentTime - lastStepTime;
+    double SPM = 60.0 / dt; // 1分あたりの足踏み数
+    lastStepTime = currentTime;
+    
+    if (SPM >= Run_SPM_Threshold) {
+        state = STATE_RUN; // OSC Vertical = 1.0
+    } else {
+        state = STATE_WALK; // OSC Vertical = 0.5
+    }
+}
+            </div>
+          </div>
+
+          <div class="algo-section mt-4">
+            <h3>2. サイレントモード (Knee Pitch Angle Algorithm)</h3>
+            <p>床に着地衝撃を与えないよう、かかとを浮かせず膝を前後に曲げ伸ばしする動作を検出します。太ももの傾き角 (Pitch) の極大値・極小値をセンシングします。</p>
+            <div class="code-block">
+// 相補フィルタによる太もものピッチ角 (傾き) 推定
+double accelPitch = atan2(Ax, Az) * (180.0 / M_PI);
+pitchAngle = 0.95 * (pitchAngle + GyroY * dt) + 0.05 * accelPitch;
+
+// 膝曲げ運動の往復振幅 (Amplitude) 算出
+double deltaAngle = abs(currentPitch - baselinePitch);
+
+if (deltaAngle > Silent_Angle_Threshold) {
+    // 連続運動カウント更新
+    activeMotionTimer = 0.5; // 0.5秒間移動状態を維持
+    
+    // 曲げ伸ばしの角速度により walk / run 判定
+    if (abs(GyroY) > Silent_Run_Gyro_Threshold) {
+        state = STATE_RUN;
+    } else {
+        state = STATE_WALK;
+    }
+}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 4: OSC / VRCHAT GUIDE -->
+      <section id="tab-osc-guide" class="tab-content">
+        <div class="card glass p-4">
+          <h2>🌐 VRChat OSC / 仮想キー設定ガイド</h2>
+
+          <div class="guide-grid mt-3">
+            <div class="guide-card">
+              <h3>1. Wキー仮想入力方式 (簡易設定)</h3>
+              <p>キーボードの `W` キー入力をシミュレートする方式です。ゲーム内設定を変更せずに動作します。</p>
+              <ul>
+                <li><strong>Walk:</strong> WキーをON (または一定間隔でパルス送信)</li>
+                <li><strong>Run:</strong> Shift + WキーをON</li>
+              </ul>
+            </div>
+
+            <div class="guide-card highlight-card">
+              <h3>2. VRChat Native OSC方式 (推奨・高度設定)</h3>
+              <p>VRChat標準のOSC Input機能を利用します。アナログスティックのように滑らかな速度調節が可能です。</p>
+              <ul>
+                <li><strong>送信先アドレス:</strong> `127.0.0.1 : 9010` (UDP)</li>
+                <li><strong>前進アナログ入力:</strong> `/input/Vertical` (Float: `0.0` ~ `1.0`)</li>
+                <li><strong>ダッシュフラグ:</strong> `/input/Run` (Int: `0` または `1`)</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="python-bridge-card mt-4">
+            <h3>🐍 Python OSC/Wキー ブリッジスクリプト例</h3>
+            <p>本WebアプリまたはローカルPythonスクリプトからVRChatへOSCメッセージを送信する最小コード例です。</p>
+            <div class="code-block">
+import time
+from pythonosc import udp_client
+
+# VRChatデフォルトOSCポート
+client = udp_client.SimpleUDPClient("127.0.0.1", 9010)
+
+def send_vrchat_movement(speed: float, is_running: bool):
+    """
+    speed: 0.0 (停止), 0.5 (歩き), 1.0 (走り)
+    """
+    client.send_message("/input/Vertical", speed)
+    client.send_message("/input/Run", 1 if is_running else 0)
+
+# 例: 歩行中
+send_vrchat_movement(0.5, False)
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <footer class="main-footer">
+      <p>Joy-Con(L) Locomotion System Feasibility Test Utility &bull; Designed for VRChat Users</p>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
