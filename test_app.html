@@ -3,14 +3,18 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Joy-Con(L) 個人適応キャリブレーション & VRChat統合コントロール</title>
+  <title>JoyCon2VRC</title>
+  <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="48x48" href="assets/favicon-48.png">
+  <link rel="shortcut icon" href="assets/favicon.ico">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #090d16;
-      --card-bg: rgba(18, 26, 43, 0.85);
+      --bg: #0b0f19;
+      --card-bg: rgba(21, 30, 49, 0.85);
       --card-border: rgba(255, 255, 255, 0.08);
       --primary: #6366f1;
       --accent-cyan: #06b6d4;
@@ -25,96 +29,85 @@
 
     body {
       background-color: var(--bg);
-      background-image: 
-        radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.15) 0%, transparent 40%),
-        radial-gradient(circle at 90% 80%, rgba(6, 182, 212, 0.15) 0%, transparent 40%);
       color: var(--text);
-      font-family: 'Inter', sans-serif;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
       min-height: 100vh;
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 1.5rem 1rem;
+      padding: 1.25rem 1rem;
     }
 
     .container {
       width: 100%;
-      max-width: 960px;
+      max-width: 900px;
       display: flex;
       flex-direction: column;
-      gap: 1.25rem;
+      gap: 0.9rem;
+      position: relative;
     }
 
-    header { text-align: center; }
-    header h1 {
-      font-size: 1.8rem;
-      font-weight: 800;
-      background: linear-gradient(135deg, #fff 0%, #a5b4fc 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-    header p { font-size: 0.85rem; color: var(--text-dim); margin-top: 0.2rem; }
+    header { text-align: center; margin-bottom: 0.2rem; }
+    header h1 { font-size: 1.65rem; font-weight: 700; color: #fff; letter-spacing: -0.02em; }
+    header p { font-size: 0.82rem; color: var(--text-dim); margin-top: 0.15rem; }
 
     .card {
       background: var(--card-bg);
-      backdrop-filter: blur(16px);
       border: 1px solid var(--card-border);
-      border-radius: 18px;
-      padding: 1.25rem;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+      border-radius: 14px;
+      padding: 1.1rem;
     }
 
     .btn {
-      background: linear-gradient(135deg, var(--primary) 0%, #4338ca 100%);
+      background: var(--primary);
       color: white;
       border: none;
-      padding: 0.75rem 1.5rem;
-      border-radius: 10px;
-      font-size: 0.95rem;
-      font-weight: 700;
+      padding: 0.6rem 1.15rem;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      font-weight: 600;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
       gap: 0.5rem;
-      box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
-      transition: all 0.2s ease;
+      transition: all 0.15s ease;
     }
-    .btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(99, 102, 241, 0.6); }
+    .btn:hover:not(:disabled) { opacity: 0.9; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-    .btn-wiz {
-      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-      box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
-    }
-    .btn-wiz:hover { box-shadow: 0 6px 20px rgba(16, 185, 129, 0.6); }
-
-    .btn-vrc-toggle {
-      background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
-      box-shadow: 0 4px 15px rgba(6, 182, 212, 0.4);
-    }
-    .btn-vrc-toggle.active {
-      background: linear-gradient(135deg, #f43f5e 0%, #e11d48 100%);
-      box-shadow: 0 0 20px rgba(244, 63, 94, 0.6);
-      animation: pulse 1.5s infinite;
-    }
-
-    @keyframes pulse {
-      0% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.7); }
-      70% { box-shadow: 0 0 0 10px rgba(244, 63, 94, 0); }
-      100% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0); }
-    }
+    .btn-wiz { background: var(--accent-green); }
+    .btn-vrc-toggle { background: var(--accent-cyan); color: #000; }
+    .btn-vrc-toggle.active { background: var(--accent-red); color: #fff; }
 
     .status-pill {
-      padding: 0.35rem 0.9rem;
-      border-radius: 30px;
-      font-size: 0.8rem;
-      font-weight: 700;
+      padding: 0.3rem 0.75rem;
+      border-radius: 20px;
+      font-size: 0.78rem;
+      font-weight: 600;
     }
-    .pill-offline { background: rgba(148, 163, 184, 0.2); color: #cbd5e1; border: 1px solid #64748b; }
-    .pill-online { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid #10b981; }
+    .pill-offline { background: rgba(148, 163, 184, 0.15); color: #94a3b8; border: 1px solid #475569; }
+    .pill-online { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid #10b981; }
 
-    .wizard-card {
-      border: 2px solid var(--accent-green);
-      background: rgba(16, 185, 129, 0.05);
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(4, 6, 12, 0.8);
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 1rem;
+    }
+
+    .modal-content {
+      width: 100%;
+      max-width: 520px;
+      border: 1px solid var(--accent-green);
+      background: rgba(15, 23, 42, 0.95);
+      border-radius: 16px;
+      padding: 1.5rem;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
     }
 
     .wizard-step-banner {
@@ -122,14 +115,14 @@
       align-items: center;
       justify-content: space-between;
       background: rgba(0,0,0,0.3);
-      padding: 1rem;
+      padding: 1rem 1.2rem;
       border-radius: 12px;
-      margin-top: 0.8rem;
+      margin-top: 1rem;
     }
 
     .wizard-countdown {
-      font-size: 2.5rem;
-      font-weight: 800;
+      font-size: 2.2rem;
+      font-weight: 700;
       font-family: 'JetBrains Mono', monospace;
       color: var(--accent-amber);
     }
@@ -137,9 +130,9 @@
     .visual-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 1.25rem;
+      gap: 0.9rem;
     }
-    @media (max-width: 750px) { .visual-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 700px) { .visual-grid { grid-template-columns: 1fr; } }
 
     .state-box {
       display: flex;
@@ -149,117 +142,121 @@
     }
 
     .state-badge {
-      font-size: 2.2rem;
-      font-weight: 800;
-      padding: 0.4rem 1.6rem;
-      border-radius: 14px;
-      margin-bottom: 0.8rem;
+      font-size: 1.8rem;
+      font-weight: 700;
+      padding: 0.3rem 1.2rem;
+      border-radius: 10px;
+      margin-bottom: 0.6rem;
       font-family: 'JetBrains Mono', monospace;
     }
-    .badge-stop { background: rgba(148, 163, 184, 0.15); color: #94a3b8; border: 1px solid #475569; }
-    .badge-walk { background: rgba(6, 182, 212, 0.2); color: #38bdf8; border: 1px solid #06b6d4; box-shadow: 0 0 20px rgba(6,182,212,0.3); }
-    .badge-run { background: rgba(244, 63, 94, 0.2); color: #fb7185; border: 1px solid #f43f5e; box-shadow: 0 0 25px rgba(244,63,94,0.5); }
+    .badge-stop { background: rgba(148, 163, 184, 0.1); color: #94a3b8; border: 1px solid #475569; }
+    .badge-walk { background: rgba(6, 182, 212, 0.15); color: #38bdf8; border: 1px solid #06b6d4; }
+    .badge-run { background: rgba(244, 63, 94, 0.15); color: #fb7185; border: 1px solid #f43f5e; }
 
     .gauge-bg {
       width: 100%;
-      height: 10px;
+      height: 8px;
       background: rgba(255,255,255,0.08);
-      border-radius: 5px;
+      border-radius: 4px;
       overflow: hidden;
-      margin-top: 0.4rem;
+      margin-top: 0.35rem;
     }
     .gauge-fill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent-cyan), var(--primary), var(--accent-red)); transition: width 0.1s; }
 
     .key-badge {
       background: rgba(255,255,255,0.05);
       border: 1px solid var(--card-border);
-      padding: 0.3rem 0.8rem;
+      padding: 0.25rem 0.65rem;
       border-radius: 6px;
       font-family: 'JetBrains Mono', monospace;
-      font-size: 0.85rem;
+      font-size: 0.78rem;
       color: var(--text-dim);
     }
-    .key-badge.active { background: var(--primary); color: white; border-color: var(--primary); box-shadow: 0 0 10px rgba(99,102,241,0.6); }
+    .key-badge.active { background: var(--primary); color: white; border-color: var(--primary); }
 
-    .slider-group { margin-bottom: 0.75rem; }
+    .slider-group { margin-bottom: 0.65rem; }
     .slider-group label {
       font-size: 0.78rem;
       color: var(--text-dim);
       display: flex;
       justify-content: space-between;
-      margin-bottom: 0.2rem;
+      margin-bottom: 0.15rem;
     }
-    .slider-val { font-family: 'JetBrains Mono', monospace; font-weight: 700; color: var(--accent-cyan); }
+    .slider-val { font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--accent-cyan); }
     input[type="range"] { width: 100%; accent-color: var(--primary); }
 
     .raw-debug-panel {
-      background: #050810;
-      border: 1px solid rgba(6, 182, 212, 0.3);
-      border-radius: 14px;
-      padding: 1rem;
+      background: #070a12;
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 0.9rem;
     }
 
     .raw-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-      gap: 0.6rem;
+      grid-template-columns: repeat(auto-fit, minmax(115px, 1fr));
+      gap: 0.45rem;
     }
 
     .raw-item {
-      background: rgba(255,255,255,0.03);
-      padding: 0.5rem 0.75rem;
-      border-radius: 8px;
+      background: rgba(255,255,255,0.02);
+      padding: 0.4rem 0.6rem;
+      border-radius: 6px;
       border: 1px solid rgba(255,255,255,0.04);
     }
-    .raw-item .lbl { font-size: 0.7rem; color: var(--text-dim); }
-    .raw-item .val { font-size: 1.05rem; font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #fff; }
+    .raw-item .lbl { font-size: 0.68rem; color: var(--text-dim); }
+    .raw-item .val { font-size: 0.95rem; font-family: 'JetBrains Mono', monospace; font-weight: 600; color: #fff; }
     .val-highlight { color: var(--accent-amber) !important; }
     .val-alert { color: var(--accent-red) !important; }
 
     canvas {
       width: 100%;
-      height: 160px;
-      background: #050810;
-      border-radius: 10px;
+      height: 120px;
+      background: #04060c;
+      border-radius: 8px;
       border: 1px solid var(--card-border);
       display: block;
-      margin-top: 0.8rem;
+      margin-top: 0.65rem;
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <header>
-      <h1>🎮 Joy-Con 個人適応 & VRChat統合ダッシュボード</h1>
-      <p>ワンクリックで VRChat へのリアルタイム移動送信 (OSC & 仮想キー) をスタートできます</p>
+    <header style="display: flex; align-items: center; justify-content: center; gap: 0.75rem;">
+      <img src="assets/icon.png" alt="Joycon2VRC Logo" style="width: 44px; height: 44px; border-radius: 10px; box-shadow: 0 0 12px rgba(6, 182, 212, 0.4); border: 1px solid rgba(255, 255, 255, 0.15);">
+      <div>
+        <h1 style="margin: 0; line-height: 1.2;">JoyCon2VRC</h1>
+        <p style="margin: 0;">Joy-Con(L) ロコモーション コントローラー</p>
+      </div>
     </header>
 
     <!-- Top Connection & VRChat Launch Control Bar -->
-    <div class="card" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
-      <div style="display: flex; gap: 0.6rem; flex-wrap: wrap;">
-        <button id="btnConnect" class="btn">🔌 Joy-Con (L) 接続</button>
-        <button id="btnStartWizard" class="btn btn-wiz">🧙‍♂️ 個人キャリブレーション (3ステップ)</button>
-        <button id="btnVrcToggle" class="btn btn-vrc-toggle">🚀 VRChat移動送信を開始 (OFF)</button>
+    <div class="card" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.8rem;">
+      <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+        <button id="btnStartWizard" class="btn btn-wiz">キャリブレーション</button>
+        <button id="btnVrcToggle" class="btn btn-vrc-toggle">VRChat連携: OFF</button>
       </div>
-      <div style="display: flex; align-items: center; gap: 1rem;">
-        <span id="connStatus" class="status-pill pill-offline">未接続</span>
-        <span id="vrcStatus" class="status-pill pill-offline" style="font-size: 0.75rem;">VRC Bridge: Standby</span>
+      <div style="display: flex; align-items: center; gap: 0.75rem;">
+        <span id="connStatus" class="status-pill pill-offline">Joy-Con 接続待ち</span>
+        <span id="vrcStatus" class="status-pill pill-offline" style="font-size: 0.75rem;">OSC: 停止中</span>
       </div>
     </div>
 
-    <!-- CALIBRATION WIZARD PANEL -->
-    <div id="wizardCard" class="card wizard-card" style="display: none;">
-      <h3 id="wizTitle" style="color: var(--accent-green);">🧙‍♂️ 3ステップ個人キャリブレーション ウィザード</h3>
-      <p id="wizDesc" style="font-size: 0.88rem; color: var(--text); margin-top: 0.3rem;">
-        指示に従って動作を行ってください。あなたの歩行・走行の癖を測定します。
-      </p>
-      
-      <div class="wizard-step-banner">
-        <div>
-          <div id="wizStepBadge" style="font-size: 0.8rem; font-weight: 700; color: var(--accent-cyan);">STEP 1 / 3</div>
-          <div id="wizInstruction" style="font-size: 1.1rem; font-weight: 700; margin-top: 0.2rem;">まっすぐ立ったまま静止してください</div>
+    <!-- CALIBRATION MODAL OVERLAY -->
+    <div id="wizardModal" class="modal-overlay" style="display: none;">
+      <div class="modal-content">
+        <h3 id="wizTitle" style="font-size: 1.1rem; color: var(--accent-green);">キャリブレーション</h3>
+        <p id="wizDesc" style="font-size: 0.85rem; color: var(--text-dim); margin-top: 0.3rem;">
+          動作の個性を測定し、感度と移動速度を自動最適化します。
+        </p>
+        
+        <div class="wizard-step-banner">
+          <div>
+            <div id="wizStepBadge" style="font-size: 0.78rem; font-weight: 600; color: var(--accent-cyan);">STEP 1 / 3</div>
+            <div id="wizInstruction" style="font-size: 0.98rem; font-weight: 600; margin-top: 0.15rem;">まっすぐ立って 3秒間 静止してください</div>
+          </div>
+          <div id="wizTimer" class="wizard-countdown">3</div>
         </div>
-        <div id="wizTimer" class="wizard-countdown">3</div>
       </div>
     </div>
 
@@ -269,37 +266,37 @@
       <div class="card state-box">
         <div id="motionBadge" class="state-badge badge-stop">STOP</div>
         <div style="width: 100%;">
-          <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-dim);">
-            <span>OSC Speed</span>
-            <span id="oscValText" style="font-family: 'JetBrains Mono'; font-weight: 700; color: var(--accent-cyan);">0.00</span>
+          <div style="display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--text-dim);">
+            <span>移動入力強度</span>
+            <span id="oscValText" style="font-family: 'JetBrains Mono'; font-weight: 600; color: var(--accent-cyan);">0.00</span>
           </div>
           <div class="gauge-bg"><div id="gaugeFill" class="gauge-fill"></div></div>
         </div>
-        <div style="display: flex; gap: 0.6rem; margin-top: 0.8rem;">
+        <div style="display: flex; gap: 0.5rem; margin-top: 0.65rem;">
           <span id="keyW" class="key-badge">W (前進)</span>
-          <span id="keyShift" class="key-badge">Shift (走る)</span>
+          <span id="keyShift" class="key-badge">Shift (ダッシュ)</span>
         </div>
-        <div style="margin-top: 0.6rem; font-size: 0.8rem; color: var(--text-dim);">
-          平均ピッチ: <span id="smoothedSpmText" style="font-family: 'JetBrains Mono'; color: var(--accent-amber); font-weight: 700;">0 SPM</span>
+        <div style="margin-top: 0.45rem; font-size: 0.75rem; color: var(--text-dim);">
+          ケイデンス: <span id="smoothedSpmText" style="font-family: 'JetBrains Mono'; color: var(--accent-amber); font-weight: 600;">0 SPM</span>
         </div>
       </div>
 
       <!-- Auto-Calibrated Sliders -->
       <div class="card">
-        <h4 style="font-size: 0.88rem; color: #fff; margin-bottom: 0.75rem;">⚙️ 個人プロファイル & 閾値設定</h4>
+        <h4 style="font-size: 0.82rem; color: #fff; margin-bottom: 0.55rem;">感度・速度設定</h4>
         
         <div class="slider-group">
-          <label>① 衝撃感度 Adyn 閾値 <span id="lblSens" class="slider-val">0.35 G</span></label>
+          <label>ステップ検知感度 <span id="lblSens" class="slider-val">0.35 G</span></label>
           <input type="range" id="sliderSens" min="0.10" max="1.0" step="0.05" value="0.35">
         </div>
 
         <div class="slider-group">
-          <label>② WALK $\rightarrow$ RUN 速度閾値 <span id="lblRunSpm" class="slider-val">150 SPM</span></label>
+          <label>RUN切り替え速度 <span id="lblRunSpm" class="slider-val">150 SPM</span></label>
           <input type="range" id="sliderRunSpm" min="110" max="210" step="5" value="150">
         </div>
 
         <div class="slider-group">
-          <label>③ 反復横跳び防止 ホールド時間 <span id="lblHoldTime" class="slider-val">1000 ms</span></label>
+          <label>入力保持時間 <span id="lblHoldTime" class="slider-val">1000 ms</span></label>
           <input type="range" id="sliderHoldTime" min="500" max="1800" step="50" value="1000">
         </div>
       </div>
@@ -307,35 +304,35 @@
 
     <!-- RAW SENSOR DATA DEBUG PANEL -->
     <div class="card raw-debug-panel">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-        <h3 style="font-size: 0.95rem; color: var(--accent-cyan);">🐛 RAW センサー生データ & プロファイル</h3>
-        <span id="profileStatus" style="font-size: 0.78rem; color: var(--accent-green); font-family: 'JetBrains Mono';">Profile: Default</span>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+        <h3 style="font-size: 0.85rem; color: var(--text-dim);">IMU センサーデータ</h3>
+        <span id="profileStatus" style="font-size: 0.75rem; color: var(--accent-green); font-family: 'JetBrains Mono';">Profile: Standard</span>
       </div>
 
       <div class="raw-grid">
         <div class="raw-item">
-          <div class="lbl">Raw Accel X</div>
+          <div class="lbl">Accel X</div>
           <div id="rawAx" class="val">0.000 G</div>
         </div>
         <div class="raw-item">
-          <div class="lbl">Raw Accel Y</div>
+          <div class="lbl">Accel Y</div>
           <div id="rawAy" class="val">0.000 G</div>
         </div>
         <div class="raw-item">
-          <div class="lbl">Raw Accel Z</div>
+          <div class="lbl">Accel Z</div>
           <div id="rawAz" class="val">0.000 G</div>
         </div>
         <div class="raw-item">
-          <div class="lbl">衝撃 Adyn (|A|-g)</div>
+          <div class="lbl">インパクト (Adyn)</div>
           <div id="rawAdyn" class="val val-alert">0.000 G</div>
         </div>
         <div class="raw-item">
-          <div class="lbl">太もも Pitch 角</div>
+          <div class="lbl">脚部ピッチ角</div>
           <div id="calcPitch" class="val val-highlight">0.0°</div>
         </div>
         <div class="raw-item">
-          <div class="lbl">送信ステータス</div>
-          <div id="sendDebugText" class="val" style="font-size: 0.8rem; color: var(--accent-cyan);">OFF</div>
+          <div class="lbl">保持タイマー</div>
+          <div id="holdCountText" class="val">0 ms</div>
         </div>
       </div>
 
@@ -346,8 +343,6 @@
   <script>
     let isConnected = false;
     let isVrcTransmitting = false;
-    let hidDevice = null;
-    let packetCounter = 0;
 
     let sensThreshold = 0.35;
     let runSpmThreshold = 150;
@@ -370,16 +365,14 @@
     const historyPitch = new Array(120).fill(0);
 
     let isWizardRunning = false;
-    let wizStep = 0;
     let wizCollectedAdyn = [];
     let wizCollectedSpm = [];
 
-    const btnConnect = document.getElementById('btnConnect');
     const btnStartWizard = document.getElementById('btnStartWizard');
     const btnVrcToggle = document.getElementById('btnVrcToggle');
     const vrcStatus = document.getElementById('vrcStatus');
 
-    const wizardCard = document.getElementById('wizardCard');
+    const wizardModal = document.getElementById('wizardModal');
     const wizStepBadge = document.getElementById('wizStepBadge');
     const wizInstruction = document.getElementById('wizInstruction');
     const wizTimer = document.getElementById('wizTimer');
@@ -399,7 +392,7 @@
     const domRawAz = document.getElementById('rawAz');
     const domRawAdyn = document.getElementById('rawAdyn');
     const domCalcPitch = document.getElementById('calcPitch');
-    const sendDebugText = document.getElementById('sendDebugText');
+    const domHoldCountText = document.getElementById('holdCountText');
 
     const motionBadge = document.getElementById('motionBadge');
     const oscValText = document.getElementById('oscValText');
@@ -425,46 +418,96 @@
 
     btnVrcToggle.onclick = () => {
       if (!isConnected && !isVrcTransmitting) {
-        alert('まず「Joy-Con (L) 接続」を行ってください。');
+        alert('Joy-Con (L) が接続されていません。Bluetooth接続を確認してください。');
         return;
       }
       isVrcTransmitting = !isVrcTransmitting;
       if (isVrcTransmitting) {
         btnVrcToggle.classList.add('active');
-        btnVrcToggle.textContent = '🚀 VRChat送信中 (ON - クリックで停止)';
+        btnVrcToggle.textContent = 'VRChat連携: ON';
         vrcStatus.className = 'status-pill pill-online';
-        vrcStatus.textContent = 'VRC Output: ACTIVE';
+        vrcStatus.textContent = 'OSC: 送信中';
       } else {
         btnVrcToggle.classList.remove('active');
-        btnVrcToggle.textContent = '🚀 VRChat移動送信を開始 (OFF)';
+        btnVrcToggle.textContent = 'VRChat連携: OFF';
         vrcStatus.className = 'status-pill pill-offline';
-        vrcStatus.textContent = 'VRC Output: STOPPED';
-        fetch('http://127.0.0.1:9011/send?speed=0.0&run=0&key=1').catch(()=>{});
+        vrcStatus.textContent = 'OSC: 停止中';
+        sendVrcData(0.0, 0);
       }
     };
 
+    let lastSensorTime = 0;
+
+    async function pollSensorData() {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 300);
+
+      try {
+        const res = await fetch('http://127.0.0.1:9011/get_sensor', { signal: controller.signal });
+        clearTimeout(timeoutId);
+
+        if (res.ok) {
+          const data = await res.json();
+          lastSensorTime = data.last_update;
+
+          if (data.connected !== isConnected) {
+            isConnected = data.connected;
+            if (isConnected) {
+              connStatus.className = 'status-pill pill-online';
+              connStatus.textContent = 'Joy-Con(L) 接続中';
+            } else {
+              connStatus.className = 'status-pill pill-offline';
+              connStatus.textContent = 'Joy-Con 接続待ち';
+            }
+          }
+
+          if (isConnected) {
+            rawAx = data.ax; rawAy = data.ay; rawAz = data.az;
+            rawGx = data.gx; rawGy = data.gy;
+            processMotion(performance.now());
+          }
+        }
+      } catch (e) {
+      } finally {
+        setTimeout(pollSensorData, 16);
+      }
+    }
+
+    pollSensorData();
+
+    function sendVrcData(speed, run) {
+      fetch(`http://127.0.0.1:9011/send?speed=${speed}&run=${run}&key=1`).catch(()=>{});
+    }
+
     btnStartWizard.onclick = () => {
+      if (isWizardRunning) return;
       if (!isConnected) {
-        alert('まず「Joy-Con (L) 接続」を押して接続してください。');
+        alert('まず Joy-Con (L) をBluetooth接続してください。');
         return;
       }
-      wizardCard.style.display = 'block';
+      btnStartWizard.disabled = true;
+      wizardModal.style.display = 'flex';
       startWizardStep(1);
     };
 
     async function startWizardStep(step) {
-      wizStep = step;
       wizCollectedAdyn = [];
       wizCollectedSpm = [];
 
       if (step === 1) {
-        wizStepBadge.textContent = 'STEP 1 / 3: 【静止状態】';
-        wizInstruction.textContent = 'まっすぐ立ったまま 3秒間 静止してください';
+        wizStepBadge.textContent = 'STEP 1 / 3: 【静止測定】';
+        wizInstruction.textContent = 'まっすぐ立って 3秒間 静止してください';
         await runCountdown(3);
+
+        // 2-Second Interval for preparation
+        wizStepBadge.textContent = '準備';
+        wizInstruction.textContent = '次は歩行測定です。準備してください...';
+        await runCountdown(2);
+
         startWizardStep(2);
       } else if (step === 2) {
-        wizStepBadge.textContent = 'STEP 2 / 3: 【通常歩行】';
-        wizInstruction.textContent = 'いつものペースで 5秒間 その場足踏み (歩く) してください';
+        wizStepBadge.textContent = 'STEP 2 / 3: 【歩行測定】';
+        wizInstruction.textContent = '通常ペースで 5秒間 足踏みしてください';
         await runCountdown(5);
 
         const walkAdynAvg = wizCollectedAdyn.length > 0 ? (wizCollectedAdyn.reduce((a,b)=>a+b,0)/wizCollectedAdyn.length) : 0.40;
@@ -472,17 +515,23 @@
         window._wizWalkAdyn = walkAdynAvg;
         window._wizWalkSpm = walkSpmAvg;
 
+        // 2-Second Interval for preparation
+        wizStepBadge.textContent = '準備';
+        wizInstruction.textContent = '次は走行測定です。準備してください...';
+        await runCountdown(2);
+
         startWizardStep(3);
       } else if (step === 3) {
-        wizStepBadge.textContent = 'STEP 3 / 3: 【全力走行】';
-        wizInstruction.textContent = '走るペースで 5秒間 素早く足踏み (走る) してください';
+        wizStepBadge.textContent = 'STEP 3 / 3: 【走行測定】';
+        wizInstruction.textContent = '早いペースで 5秒間 足踏みしてください';
         await runCountdown(5);
 
         const runSpmAvg = wizCollectedSpm.length > 0 ? (wizCollectedSpm.reduce((a,b)=>a+b,0)/wizCollectedSpm.length) : 170;
 
         const calcSens = Math.max(0.20, Math.min(window._wizWalkAdyn * 0.6, 0.50));
         const calcRunSpm = Math.round((window._wizWalkSpm + runSpmAvg) / 2);
-        const calcHoldTime = Math.min(Math.max(Math.round((60000 / window._wizWalkSpm) * 1.5), 850), 1400);
+        // Ensure robust hold time (min 1100ms) to guarantee smooth WALK without dropping to STOP
+        const calcHoldTime = Math.min(Math.max(Math.round((60000 / window._wizWalkSpm) * 1.6), 1100), 1600);
 
         sensThreshold = calcSens;
         runSpmThreshold = calcRunSpm;
@@ -497,13 +546,16 @@
         sliderHoldTime.value = holdTimeMs;
         lblHoldTime.textContent = `${holdTimeMs} ms`;
 
-        profileStatus.textContent = `Profile: Personal (Walk:${window._wizWalkSpm}SPM, Run:${runSpmAvg}SPM)`;
+        profileStatus.textContent = `Profile: Custom (${window._wizWalkSpm}/${runSpmAvg} SPM)`;
 
-        wizStepBadge.textContent = '🎉 キャリブレーション完了！';
-        wizInstruction.textContent = `設定完了: 感度 ${sensThreshold.toFixed(2)}G / RUN閾値 ${runSpmThreshold}SPM / ホールド ${holdTimeMs}ms`;
+        wizStepBadge.textContent = '完了';
+        wizInstruction.textContent = `自動最適化完了: 感度 ${sensThreshold.toFixed(2)}G / 走行 ${runSpmThreshold}SPM`;
         wizTimer.textContent = 'OK';
 
-        setTimeout(() => { wizardCard.style.display = 'none'; }, 4000);
+        setTimeout(() => {
+          wizardModal.style.display = 'none';
+          btnStartWizard.disabled = false;
+        }, 2500);
       }
     }
 
@@ -525,61 +577,6 @@
       });
     }
 
-    async function sendSubcommand(device, subcmd, args) {
-      const rumble = [0x00, 0x01, 0x40, 0x40, 0x00, 0x01, 0x40, 0x40];
-      const buf = new Uint8Array([packetCounter & 0x0F, ...rumble, subcmd, ...args]);
-      packetCounter = (packetCounter + 1) & 0x0F;
-      try { await device.sendReport(0x01, buf); } catch (err) {}
-    }
-
-    async function enableJoyConIMU(device) {
-      await sendSubcommand(device, 0x03, [0x30]);
-      await new Promise(r => setTimeout(r, 50));
-      await sendSubcommand(device, 0x40, [0x01]);
-    }
-
-    btnConnect.onclick = async () => {
-      if (!('hid' in navigator)) {
-        alert('WebHID API に非対応のブラウザです。Chrome/Edge を使用してください。');
-        return;
-      }
-      try {
-        const devices = await navigator.hid.requestDevice({
-          filters: [{ vendorId: 0x057e, productId: 0x2006 }]
-        });
-        if (devices.length === 0) return;
-        hidDevice = devices[0];
-        await hidDevice.open();
-
-        isConnected = true;
-        connStatus.className = 'status-pill pill-online';
-        connStatus.textContent = 'Joy-Con (L) 接続中';
-
-        await enableJoyConIMU(hidDevice);
-
-        let frameCnt = 0, lastSec = performance.now();
-
-        hidDevice.addEventListener('inputreport', (e) => {
-          frameCnt++;
-          const now = performance.now();
-          const { reportId, data } = e;
-
-          if ((reportId === 0x30 || reportId === 0x21) && data.byteLength >= 24) {
-            rawAx = data.getInt16(12, true) * 0.000244;
-            rawAy = data.getInt16(14, true) * 0.000244;
-            rawAz = data.getInt16(16, true) * 0.000244;
-
-            rawGx = data.getInt16(18, true) * 0.061;
-            rawGy = data.getInt16(20, true) * 0.061;
-
-            processMotion(now);
-          }
-        });
-      } catch (err) {
-        alert(`接続エラー: ${err.message}`);
-      }
-    };
-
     let lastVrcSend = 0;
 
     function processMotion(now) {
@@ -597,17 +594,22 @@
         wizCollectedAdyn.push(dynAccel);
       }
 
+      // --- Robust WALK Locomotion Logic (Zero STOP Drops) ---
       if (dynAccel > sensThreshold) {
+        // Guarantee hold time is at least 1100ms to bridge step intervals seamlessly
+        const activeHold = Math.max(holdTimeMs, 1100);
+
         if (lastStepTime === 0) {
           lastStepTime = now;
           consecutiveSteps = 1;
+          cooldownUntil = now + activeHold;
         } else {
           const dt = now - lastStepTime;
-          if (dt > 200 && dt < 1200) {
+          if (dt > 180 && dt < 1400) {
             const rawSpm = Math.round(60000 / dt);
             lastStepTime = now;
             consecutiveSteps++;
-            cooldownUntil = now + holdTimeMs;
+            cooldownUntil = now + activeHold; // Extend WALK hold continuously
 
             spmHistory.shift();
             spmHistory.push(rawSpm);
@@ -616,13 +618,15 @@
             if (isWizardRunning && rawSpm > 60) {
               wizCollectedSpm.push(rawSpm);
             }
-          } else if (dt >= 1200) {
+          } else if (dt >= 1400) {
             lastStepTime = now;
             consecutiveSteps = 1;
+            cooldownUntil = now + activeHold;
           }
         }
       }
 
+      // State Evaluation (WALK Maintenance Priority)
       if (now > cooldownUntil) {
         stateName = 'STOP';
         speedOutput = 0.0;
@@ -630,30 +634,20 @@
         consecutiveSteps = 0;
         spmHistory = [0, 0, 0];
       } else {
-        if (consecutiveSteps >= 1) {
-          if (smoothedSpm >= runSpmThreshold) {
-            stateName = 'RUN';
-            speedOutput = 1.0;
-          } else {
-            stateName = 'WALK';
-            speedOutput = 0.5;
-          }
+        // While within cooldown period, prioritize keeping WALK (0.5) over dropping to STOP
+        if (smoothedSpm >= runSpmThreshold) {
+          stateName = 'RUN';
+          speedOutput = 1.0;
         } else {
-          stateName = 'STOP';
-          speedOutput = 0.0;
+          stateName = 'WALK';
+          speedOutput = 0.5;
         }
       }
 
-      // Forward Movement Signal (OSC & Key=1) to Bridge Server
       if (isVrcTransmitting && (now - lastVrcSend > 80)) {
         lastVrcSend = now;
         const isRun = speedOutput === 1.0 ? 1 : 0;
-        sendDebugText.textContent = `SEND: ${speedOutput.toFixed(2)}`;
-        fetch(`http://127.0.0.1:9011/send?speed=${speedOutput}&run=${isRun}&key=1`).catch(()=>{
-          sendDebugText.textContent = `ERR: Bridge offline`;
-        });
-      } else if (!isVrcTransmitting) {
-        sendDebugText.textContent = `OFF`;
+        sendVrcData(speedOutput, isRun);
       }
 
       historyAdyn.shift(); historyAdyn.push(dynAccel);
@@ -664,6 +658,9 @@
       domRawAz.textContent = `${rawAz.toFixed(3)} G`;
       domRawAdyn.textContent = `${dynAccel.toFixed(3)} G`;
       domCalcPitch.textContent = `${estimatedPitch.toFixed(1)}°`;
+
+      const remainHold = Math.max(0, Math.round(cooldownUntil - now));
+      domHoldCountText.textContent = `${remainHold} ms`;
 
       smoothedSpmText.textContent = `${smoothedSpm} SPM`;
 
