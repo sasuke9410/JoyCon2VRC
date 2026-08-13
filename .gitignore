@@ -6,8 +6,14 @@ env/
 __pycache__/
 *.pyc
 
+# PyInstaller / Build outputs (Excluded from Git track)
+build/
+dist/
+*.spec
+
 # IDE / System
 .vscode/
 .idea/
 .DS_Store
 *.log
+.pytest_cache/
