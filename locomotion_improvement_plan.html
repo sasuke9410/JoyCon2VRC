@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JoyCon2VRC ロコモーション改善計画書</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-gradient: radial-gradient(circle at 50% 0%, #1e1b4b 0%, #0f172a 50%, #030712 100%);
+      --surface-1: rgba(30, 41, 59, 0.7);
+      --surface-2: rgba(15, 23, 42, 0.85);
+      --surface-card: rgba(30, 41, 59, 0.5);
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-accent: rgba(99, 102, 241, 0.3);
+      --primary: #6366f1;
+      --primary-light: #818cf8;
+      --accent-cyan: #06b6d4;
+      --accent-emerald: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-rose: #f43f5e;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --code-bg: #090d16;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: var(--bg-gradient);
+      color: var(--text-main);
+      font-family: 'Inter', 'Noto Sans JP', -apple-system, BlinkMacSystemFont, sans-serif;
+      line-height: 1.65;
+      padding: 2.5rem 1.5rem;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1080px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+    }
+
+    /* Header */
+    header {
+      background: var(--surface-1);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border-accent);
+      border-radius: 20px;
+      padding: 2rem 2.5rem;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.5);
+    }
+
+    header::before {
+      content: "";
+      position: absolute;
+      top: -50px;
+      right: -50px;
+      width: 220px;
+      height: 220px;
+      background: radial-gradient(circle, rgba(99, 102, 241, 0.25), transparent 70%);
+      pointer-events: none;
+    }
+
+    .badge-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.25rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .badge-branch {
+      background: rgba(99, 102, 241, 0.18);
+      color: var(--primary-light);
+      border: 1px solid rgba(99, 102, 241, 0.4);
+    }
+
+    .badge-status {
+      background: rgba(16, 185, 129, 0.18);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.4);
+    }
+
+    h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: #ffffff;
+      margin-bottom: 0.5rem;
+    }
+
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 1rem;
+      max-width: 800px;
+    }
+
+    /* Card System */
+    .section-card {
+      background: var(--surface-1);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      padding: 1.8rem 2rem;
+      box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.4);
+    }
+
+    .section-title {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin-bottom: 1.2rem;
+      border-bottom: 1px solid var(--border-subtle);
+      padding-bottom: 0.75rem;
+    }
+
+    .section-title span.num {
+      background: var(--primary);
+      color: #fff;
+      font-size: 0.85rem;
+      font-family: 'JetBrains Mono', monospace;
+      padding: 0.15rem 0.55rem;
+      border-radius: 6px;
+    }
+
+    /* Comparison Grid */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+      margin-top: 1rem;
+    }
+
+    @media (max-width: 768px) {
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+
+    .sub-card {
+      background: var(--surface-2);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 1.25rem;
+    }
+
+    .sub-card.problem {
+      border-left: 4px solid var(--accent-rose);
+    }
+
+    .sub-card.solution {
+      border-left: 4px solid var(--accent-emerald);
+    }
+
+    .sub-card h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 0.6rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .text-rose { color: var(--accent-rose); }
+    .text-emerald { color: var(--accent-emerald); }
+    .text-cyan { color: var(--accent-cyan); }
+    .text-amber { color: var(--accent-amber); }
+
+    /* Code & Algorithms */
+    pre, code {
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    pre {
+      background: var(--code-bg);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+      overflow-x: auto;
+      font-size: 0.85rem;
+      color: #e2e8f0;
+      margin: 0.75rem 0;
+      line-height: 1.5;
+    }
+
+    .code-comment { color: var(--text-dim); font-style: italic; }
+    .code-keyword { color: #f43f5e; font-weight: 600; }
+    .code-var { color: #38bdf8; }
+    .code-func { color: #a78bfa; }
+    .code-num { color: #fbbf24; }
+
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+      font-size: 0.88rem;
+    }
+
+    th, td {
+      padding: 0.75rem 1rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    th {
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--text-muted);
+      font-weight: 600;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    tr:hover td {
+      background: rgba(255, 255, 255, 0.015);
+    }
+
+    /* List items */
+    ul, ol {
+      padding-left: 1.4rem;
+      margin-top: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    li {
+      margin-bottom: 0.4rem;
+      color: #cbd5e1;
+    }
+
+    li strong {
+      color: #fff;
+    }
+
+    /* Interactive / Step Diagrams */
+    .flow-steps {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      margin-top: 1rem;
+    }
+
+    .flow-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+      background: var(--surface-2);
+      padding: 1rem 1.2rem;
+      border-radius: 10px;
+      border: 1px solid var(--border-subtle);
+    }
+
+    .flow-num {
+      background: rgba(6, 182, 212, 0.15);
+      color: var(--accent-cyan);
+      border: 1px solid var(--accent-cyan);
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-size: 0.85rem;
+    }
+
+    .flow-content h4 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #fff;
+      margin-bottom: 0.2rem;
+    }
+
+    .flow-content p {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    /* Callout Alert */
+    .alert-box {
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+      margin-top: 1rem;
+      display: flex;
+      gap: 0.8rem;
+      align-items: flex-start;
+      font-size: 0.88rem;
+    }
+
+    .alert-info {
+      background: rgba(6, 182, 212, 0.1);
+      border: 1px solid rgba(6, 182, 212, 0.3);
+      color: #e0f2fe;
+    }
+
+    .alert-warning {
+      background: rgba(245, 158, 11, 0.1);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      color: #fef3c7;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header>
+      <div class="badge-bar">
+        <span class="badge badge-branch">Git: feature/locomotion-improvements</span>
+        <span class="badge badge-status">Phase: Design & Plan</span>
+      </div>
+      <h1>JoyCon2VRC 判定改善＆動的速度制御 実装計画書</h1>
+      <p class="subtitle">
+        静止時（重心移動等）の誤歩行判定の根本原因分析と解消、およびIMUセンサ値（ケイデンス＋動的衝撃加速度）によるVRChat OSC動的速度制御の技術仕様と移行ロードマップ
+      </p>
+    </header>
+
+    <!-- Section 1: Issue Analysis -->
+    <div class="section-card">
+      <div class="section-title">
+        <span class="num">01</span>
+        課題1：STOP中の重心移動による誤WALK判定の原因調査と解決策
+      </div>
+
+      <div class="grid-2">
+        <div class="sub-card problem">
+          <h3 class="text-rose">発生している現象と根本原因</h3>
+          <ul>
+            <li><strong>現象：</strong>静止時に片足に体重を移動させたり足首を揺らした際、意図せずWALK判定となりアバターが前進する。</li>
+            <li><strong>原因①（単発スパイクでの即時発火）：</strong>現状のロジックでは、<code>dynAccel &gt; sensThreshold</code>（0.35G）を1度でも超えると、直ちに <code>cooldownUntil = now + activeHold</code>（1100ms）がセットされ、1歩目でWALK状態に突入する。</li>
+            <li><strong>原因②（周期性の未検証）：</strong>体重移動による「単発の加速度変化」と、連続歩行による「リズミカルな振動波形」を区別していない。</li>
+            <li><strong>原因③（太ももスイング角の無視）：</strong>足踏み時は大腿のピッチ角や角速度（Gy）が大きく振れるが、重心移動ではピッチ角スイングが微小である点を判定に利用していない。</li>
+          </ul>
+        </div>
+
+        <div class="sub-card solution">
+          <h3 class="text-emerald">多層フィルタによる解決策</h3>
+          <ul>
+            <li><strong>多層判定① 2-Step確定ゲート（Cadence Trigger）：</strong>
+              初回の閾値超過（1歩目）は「予備状態（PENDING）」とし、有効周期内（200ms〜900ms）に2歩目の衝撃またはスイングが検知されて初めて WALK 状態を出力。単発衝撃は無視。
+            </li>
+            <li><strong>多層判定② ピッチ角・ジャイロ連動フィルタ：</strong>
+              単なる全軸加速度 $A_{dyn}$ だけでなく、大腿部の前後スイング角速度 $|G_y|$ または $\Delta Pitch$ が閾値以上（例: &gt;10°/s）変化している場合のみ有効ステップとみなす。
+            </li>
+            <li><strong>多層判定③ 自動ゼロ点・ベースライン適応：</strong>
+              静止中の微小な傾き変化をベースラインとして学習し、姿勢変更を誤検知しない。
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Logic Difference Code -->
+      <h4 style="margin-top: 1.5rem; font-size: 0.95rem; color: var(--text-muted);">アルゴリズム比較：判定ロジックの刷新</h4>
+      <pre><code><span class="code-comment">// 【従来の判定（単発スパイクで即WALK発動してしまっていた）】</span>
+<span class="code-keyword">if</span> (dynAccel &gt; sensThreshold) {
+    cooldownUntil = now + <span class="code-num">1100</span>; <span class="code-comment">// 1回の重心移動で即座に1.1秒間歩行モードになる！</span>
+}
+
+<span class="code-comment">// 【新しい高精度多層判定（2-Step Gate + Gyro Verification）】</span>
+<span class="code-keyword">const</span> isSwingActive = Math.abs(rawGy) &gt; gyroThreshold; <span class="code-comment">// 太もものスイング角速度検証</span>
+<span class="code-keyword">if</span> (dynAccel &gt; sensThreshold && isSwingActive) {
+    <span class="code-keyword">const</span> dt = now - lastStepTime;
+    <span class="code-keyword">if</span> (dt &gt;= <span class="code-num">200</span> && dt &lt;= <span class="code-num">950</span>) {
+        stepCount++;
+        <span class="code-keyword">if</span> (stepCount &gt;= <span class="code-num">2</span>) {
+            <span class="code-comment">// 2歩以上の連続リズムを確認して初めて歩行確定</span>
+            stateName = <span class="code-string">'WALK'</span>;
+            cooldownUntil = now + holdTimeMs;
+        }
+        lastStepTime = now;
+    } <span class="code-keyword">else if</span> (dt &gt; <span class="code-num">950</span>) {
+        stepCount = <span class="code-num">1</span>; <span class="code-comment">// 単発（重心移動など）はカウント1の保留状態とし、移動出力はしない</span>
+        lastStepTime = now;
+    }
+}</code></pre>
+    </div>
+
+    <!-- Section 2: Dynamic Speed Estimation -->
+    <div class="section-card">
+      <div class="section-title">
+        <span class="num">02</span>
+        課題2：センサ値からの動的速度推定とOSCアナログ送信設計
+      </div>
+
+      <p style="color: var(--text-muted); font-size: 0.9rem;">
+        従来は <code>WALK = 0.5</code> / <code>RUN = 1.0</code> の固定値2値制御でした。
+        足踏みのテンポ（SPM）および衝撃強度（$A_{dyn}$ / ピッチ角速度）から疑似的な歩行速度をリアルタイム算出し、VRChat の <code>/input/Vertical</code> へ <code>0.15 〜 1.00</code> の連続的なアナログ浮動小数点数を動的送信します。
+      </p>
+
+      <div class="flow-steps">
+        <div class="flow-item">
+          <div class="flow-num">1</div>
+          <div class="flow-content">
+            <h4>ケイデンス速度要素 ($V_{spm}$) の算出</h4>
+            <p>ステップ間隔 $\Delta t$ からリアルタイムSPM（歩/分）を計算し、基準レンジ（例: 70〜190 SPM）を 0.15〜1.0 に正規化。</p>
+            <pre><code><span class="code-keyword">const</span> normalizedSpm = Math.min(Math.max((smoothedSpm - <span class="code-num">70</span>) / (<span class="code-num">190</span> - <span class="code-num">70</span>), <span class="code-num">0.0</span>), <span class="code-num">1.0</span>);
+<span class="code-keyword">const</span> vSpm = <span class="code-num">0.2</span> + <span class="code-num">0.8</span> * normalizedSpm; <span class="code-comment">// 0.20 〜 1.00</span></code></pre>
+          </div>
+        </div>
+
+        <div class="flow-item">
+          <div class="flow-num">2</div>
+          <div class="flow-content">
+            <h4>衝撃・歩幅強度要素 ($V_{intensity}$) の重み付け合成</h4>
+            <p>足踏みの強さ（$A_{dyn}$ ピーク値）や大腿の上げ具合（$G_y$ 角速度）を速度係数に乗算し、ゆっくり小股足踏みなら遅く、大きく力強い足踏みなら素早く加速。</p>
+            <pre><code><span class="code-keyword">const</span> intensityFactor = Math.min(Math.max(peakAdyn / sensThreshold, <span class="code-num">0.8</span>), <span class="code-num">1.3</span>);
+<span class="code-keyword">const</span> rawTargetSpeed = Math.min(Math.max(vSpm * intensityFactor, <span class="code-num">0.15</span>), <span class="code-num">1.0</span>);</code></pre>
+          </div>
+        </div>
+
+        <div class="flow-item">
+          <div class="flow-num">3</div>
+          <div class="flow-content">
+            <h4>スルーレートリミッター（EMA / 加減速スムージング）</h4>
+            <p>OSC値の急激なガタつきを防ぎ、アバターが自然に加速・減速するように 1次遅れフィルタを適用。</p>
+            <pre><code>currentSpeed = currentSpeed * (<span class="code-num">1.0</span> - alpha) + targetSpeed * alpha; <span class="code-comment">// alpha = 0.15</span></code></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- Table of Speed Mapping -->
+      <table style="margin-top: 1.5rem;">
+        <thead>
+          <tr>
+            <th>運動状態</th>
+            <th>ケイデンス (SPM)</th>
+            <th>衝撃 / 振幅強度</th>
+            <th>OSC Vertical</th>
+            <th>OSC Run</th>
+            <th>VRChat内挙動</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>静止 (STOP)</strong></td>
+            <td>0</td>
+            <td>-</td>
+            <td><code class="text-dim">0.00</code></td>
+            <td>0</td>
+            <td>完全停止（重心移動で誤作動なし）</td>
+          </tr>
+          <tr>
+            <td><strong>すり足・微速</strong></td>
+            <td>70 - 95</td>
+            <td>小 (Adyn ~ 0.35G)</td>
+            <td><code class="text-cyan">0.20 - 0.35</code></td>
+            <td>0</td>
+            <td>ゆったりとしたすり足・狭い室内での微動</td>
+          </tr>
+          <tr>
+            <td><strong>通常歩行 (WALK)</strong></td>
+            <td>100 - 140</td>
+            <td>中 (Adyn ~ 0.55G)</td>
+            <td><code class="text-emerald">0.45 - 0.70</code></td>
+            <td>0</td>
+            <td>快適な通常速度でのワールド散策</td>
+          </tr>
+          <tr>
+            <td><strong>早歩き / ジョグ</strong></td>
+            <td>145 - 165</td>
+            <td>大 (Adyn ~ 0.80G)</td>
+            <td><code class="text-amber">0.75 - 0.90</code></td>
+            <td>0</td>
+            <td>急ぎ足（Shift押下なしでの高速移動）</td>
+          </tr>
+          <tr>
+            <td><strong>全力疾走 (RUN)</strong></td>
+            <td>170+</td>
+            <td>特大 (Adyn &gt; 1.0G)</td>
+            <td><code class="text-rose">1.00</code></td>
+            <td>1</td>
+            <td>ダッシュモード（Shift+前進）発動</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Section 3: Architecture & File Updates -->
+    <div class="section-card">
+      <div class="section-title">
+        <span class="num">03</span>
+        修正対象ファイルとアーキテクチャ構成
+      </div>
+
+      <div class="grid-2">
+        <div class="sub-card">
+          <h3 class="text-cyan">フロントエンド / GUI</h3>
+          <ul>
+            <li><code>test_app.html</code>:
+              <ul>
+                <li>2-Stepゲート＆ジャイロ検証判定の導入</li>
+                <li>動的速度算出ロジックと速度バーのリアルタイムアナログ表示</li>
+                <li>「動的速度モード (Dynamic)」と「固定値モード (Fixed)」の切り替えトグル</li>
+                <li>ステップ確定インジケーター（Pending / Locked）の追加</li>
+              </ul>
+            </li>
+          </ul>
+        </div>
+
+        <div class="sub-card">
+          <h3 class="text-amber">バックエンド / Python CLI</h3>
+          <ul>
+            <li><code>bridge_server.py</code>:
+              <ul>
+                <li>動的float速度（0.0〜1.0）のOSC送信サポート維持</li>
+                <li>キーボード送信時の閾値（例: speed &gt; 0.05 で W押下）の適正化</li>
+              </ul>
+            </li>
+            <li><code>joycon_vrchat_live.py</code>:
+              <ul>
+                <li>Python直接実行版への2-Stepゲートおよび動的速度算出エンジンの移植</li>
+              </ul>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="alert-box alert-info">
+        <div>💡</div>
+        <div>
+          <strong>互換性の担保：</strong>
+          VRChatのキーボード操作（仮想 W/Shift）のみを使用するユーザーのために、動的速度モード下でも <code>speed &gt; 0.05</code> で Wキーが滑らかに入力されるフォールバックを維持します。OSC有効環境では <code>/input/Vertical</code> により完全なアナログ速度制御が可能となります。
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 4: Verification Plan -->
+    <div class="section-card">
+      <div class="section-title">
+        <span class="num">04</span>
+        検証・テスト計画
+      </div>
+
+      <ul>
+        <li><strong>テスト1：静止時重心移動耐性テスト</strong>
+          <ul>
+            <li>左右の足への体重移動、立ち姿勢の変更、片足立ち時に <code>STOP (0.00)</code> が維持され誤発進しないことを確認。</li>
+          </ul>
+        </li>
+        <li><strong>テスト2：足踏み開始レスポンス検証</strong>
+          <ul>
+            <li>実際の足踏み開始時、2歩目（約300〜400ms以内）で遅滞なくスムーズに歩行が開始されることを確認。</li>
+          </ul>
+        </li>
+        <li><strong>テスト3：動的速度変化の連続性検証</strong>
+          <ul>
+            <li>ゆっくり足踏み（0.30）から早足（0.70）、ダッシュ（1.00）まで、足のピッチに応じてOSC値がリニアに追従することを確認。</li>
+          </ul>
+        </li>
+        <li><strong>テスト4：自動テスト・シミュレーター検証</strong>
+          <ul>
+            <li><code>test_system_automated.py</code> および HTMLシミュレータでの自動判定テストのパスを確認。</li>
+          </ul>
+        </li>
+      </ul>
+    </div>
+  </div>
+</body>
+</html>

@@ -150,6 +150,7 @@
       font-family: 'JetBrains Mono', monospace;
     }
     .badge-stop { background: rgba(148, 163, 184, 0.1); color: #94a3b8; border: 1px solid #475569; }
+    .badge-ready { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid #f59e0b; }
     .badge-walk { background: rgba(6, 182, 212, 0.15); color: #38bdf8; border: 1px solid #06b6d4; }
     .badge-run { background: rgba(244, 63, 94, 0.15); color: #fb7185; border: 1px solid #f43f5e; }
 
@@ -286,6 +287,14 @@
         <h4 style="font-size: 0.82rem; color: #fff; margin-bottom: 0.55rem;">感度・速度設定</h4>
         
         <div class="slider-group">
+          <label>速度制御モード <span id="lblSpeedMode" class="slider-val">動的 (Dynamic)</span></label>
+          <div style="display: flex; gap: 0.5rem; margin-top: 0.25rem;">
+            <button id="btnSpeedDynamic" class="btn" style="flex: 1; padding: 0.35rem 0.6rem; font-size: 0.78rem; background: var(--primary);">動的速度</button>
+            <button id="btnSpeedFixed" class="btn" style="flex: 1; padding: 0.35rem 0.6rem; font-size: 0.78rem; background: rgba(255,255,255,0.08); color: var(--text-dim);">固定値 (0.5/1.0)</button>
+          </div>
+        </div>
+
+        <div class="slider-group">
           <label>ステップ検知感度 <span id="lblSens" class="slider-val">0.35 G</span></label>
           <input type="range" id="sliderSens" min="0.10" max="1.0" step="0.05" value="0.35">
         </div>
@@ -347,6 +356,7 @@
     let sensThreshold = 0.35;
     let runSpmThreshold = 150;
     let holdTimeMs = 1000;
+    let speedMode = 'dynamic'; // 'dynamic' or 'fixed'
 
     let rawAx = 0, rawAy = 0, rawAz = 1.0;
     let rawGx = 0, rawGy = 0, rawGz = 0;
@@ -360,6 +370,7 @@
     let smoothedSpm = 0;
     let stateName = 'STOP';
     let speedOutput = 0.0;
+    let dynamicSpeedSmoothed = 0.0;
 
     const historyAdyn = new Array(120).fill(0);
     const historyPitch = new Array(120).fill(0);
@@ -379,6 +390,10 @@
     const profileStatus = document.getElementById('profileStatus');
 
     const connStatus = document.getElementById('connStatus');
+
+    const btnSpeedDynamic = document.getElementById('btnSpeedDynamic');
+    const btnSpeedFixed = document.getElementById('btnSpeedFixed');
+    const lblSpeedMode = document.getElementById('lblSpeedMode');
 
     const sliderSens = document.getElementById('sliderSens');
     const lblSens = document.getElementById('lblSens');
@@ -400,6 +415,24 @@
     const keyW = document.getElementById('keyW');
     const keyShift = document.getElementById('keyShift');
     const smoothedSpmText = document.getElementById('smoothedSpmText');
+
+    btnSpeedDynamic.onclick = () => {
+      speedMode = 'dynamic';
+      btnSpeedDynamic.style.background = 'var(--primary)';
+      btnSpeedDynamic.style.color = '#fff';
+      btnSpeedFixed.style.background = 'rgba(255,255,255,0.08)';
+      btnSpeedFixed.style.color = 'var(--text-dim)';
+      lblSpeedMode.textContent = '動的 (Dynamic)';
+    };
+
+    btnSpeedFixed.onclick = () => {
+      speedMode = 'fixed';
+      btnSpeedFixed.style.background = 'var(--primary)';
+      btnSpeedFixed.style.color = '#fff';
+      btnSpeedDynamic.style.background = 'rgba(255,255,255,0.08)';
+      btnSpeedDynamic.style.color = 'var(--text-dim)';
+      lblSpeedMode.textContent = '固定 (0.5/1.0)';
+    };
 
     sliderSens.oninput = (e) => {
       sensThreshold = parseFloat(e.target.value);
@@ -530,7 +563,6 @@
 
         const calcSens = Math.max(0.20, Math.min(window._wizWalkAdyn * 0.6, 0.50));
         const calcRunSpm = Math.round((window._wizWalkSpm + runSpmAvg) / 2);
-        // Ensure robust hold time (min 1100ms) to guarantee smooth WALK without dropping to STOP
         const calcHoldTime = Math.min(Math.max(Math.round((60000 / window._wizWalkSpm) * 1.6), 1100), 1600);
 
         sensThreshold = calcSens;
@@ -594,22 +626,26 @@
         wizCollectedAdyn.push(dynAccel);
       }
 
-      // --- Robust WALK Locomotion Logic (Zero STOP Drops) ---
-      if (dynAccel > sensThreshold) {
-        // Guarantee hold time is at least 1100ms to bridge step intervals seamlessly
+      // --- Multi-Layer Anti-Drift & Step Gate Logic ---
+      // Thigh swing verification: Gyro Y / X check to distinguish leg swing from weight shifting
+      const isThighSwing = Math.abs(rawGy) > 12.0 || Math.abs(rawGx) > 15.0;
+      const isImpact = dynAccel > sensThreshold;
+
+      if (isImpact && isThighSwing) {
         const activeHold = Math.max(holdTimeMs, 1100);
 
         if (lastStepTime === 0) {
+          // 1st Step Hit (Candidate): Enter pending state without moving
           lastStepTime = now;
           consecutiveSteps = 1;
-          cooldownUntil = now + activeHold;
         } else {
           const dt = now - lastStepTime;
-          if (dt > 180 && dt < 1400) {
-            const rawSpm = Math.round(60000 / dt);
+          if (dt >= 180 && dt <= 1000) {
+            // Valid cadence cycle: confirm continuous stepping (2+ steps)
+            const rawSpm = Math.min(Math.max(Math.round(60000 / dt), 60), 220);
             lastStepTime = now;
             consecutiveSteps++;
-            cooldownUntil = now + activeHold; // Extend WALK hold continuously
+            cooldownUntil = now + activeHold; // Extend walk lock
 
             spmHistory.shift();
             spmHistory.push(rawSpm);
@@ -618,35 +654,62 @@
             if (isWizardRunning && rawSpm > 60) {
               wizCollectedSpm.push(rawSpm);
             }
-          } else if (dt >= 1400) {
+          } else if (dt > 1000) {
+            // Step interval too long; reset to 1st pending step
             lastStepTime = now;
             consecutiveSteps = 1;
-            cooldownUntil = now + activeHold;
           }
         }
+      } else if (lastStepTime > 0 && (now - lastStepTime > 1000) && (now > cooldownUntil)) {
+        // Clear pending step if no 2nd step occurs
+        consecutiveSteps = 0;
+        lastStepTime = 0;
       }
 
-      // State Evaluation (WALK Maintenance Priority)
-      if (now > cooldownUntil) {
-        stateName = 'STOP';
+      // --- State & Speed Output Evaluation ---
+      if (now > cooldownUntil || consecutiveSteps < 2) {
+        // STOP state: single shocks or expired hold
+        stateName = (consecutiveSteps === 1) ? 'READY' : 'STOP';
         speedOutput = 0.0;
-        smoothedSpm = 0;
-        consecutiveSteps = 0;
-        spmHistory = [0, 0, 0];
+        dynamicSpeedSmoothed = 0.0;
+        smoothedSpm = (consecutiveSteps === 1) ? smoothedSpm : 0;
+        if (now > cooldownUntil) {
+          consecutiveSteps = 0;
+          spmHistory = [0, 0, 0];
+        }
       } else {
-        // While within cooldown period, prioritize keeping WALK (0.5) over dropping to STOP
-        if (smoothedSpm >= runSpmThreshold) {
-          stateName = 'RUN';
-          speedOutput = 1.0;
+        // Active Movement (2+ steps confirmed)
+        const isRunCondition = smoothedSpm >= runSpmThreshold;
+        stateName = isRunCondition ? 'RUN' : 'WALK';
+
+        if (speedMode === 'dynamic') {
+          // Continuous dynamic speed estimation:
+          // 1. Base cadence speed (0.20 to 0.85 for walking cadence)
+          const normSpm = Math.min(Math.max((smoothedSpm - 70) / (runSpmThreshold - 70), 0.0), 1.0);
+          const baseSpeed = 0.25 + 0.60 * normSpm;
+
+          // 2. Impact & stride intensity factor
+          const intensity = Math.min(Math.max(dynAccel / sensThreshold, 0.85), 1.25);
+          let targetSpeed = baseSpeed * intensity;
+
+          if (isRunCondition) {
+            targetSpeed = 1.0;
+          } else {
+            targetSpeed = Math.min(Math.max(targetSpeed, 0.20), 0.95);
+          }
+
+          // 3. Slew rate limiter / EMA smoothing (alpha = 0.20)
+          dynamicSpeedSmoothed = dynamicSpeedSmoothed * 0.80 + targetSpeed * 0.20;
+          speedOutput = Math.min(Math.max(parseFloat(dynamicSpeedSmoothed.toFixed(2)), 0.0), 1.0);
         } else {
-          stateName = 'WALK';
-          speedOutput = 0.5;
+          // Fixed Mode
+          speedOutput = isRunCondition ? 1.0 : 0.5;
         }
       }
 
       if (isVrcTransmitting && (now - lastVrcSend > 80)) {
         lastVrcSend = now;
-        const isRun = speedOutput === 1.0 ? 1 : 0;
+        const isRun = (stateName === 'RUN' || speedOutput >= 0.98) ? 1 : 0;
         sendVrcData(speedOutput, isRun);
       }
 
