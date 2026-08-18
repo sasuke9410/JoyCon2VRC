@@ -25,7 +25,10 @@ joycon_state = {
     "connected": False,
     "ax": 0.0, "ay": 0.0, "az": 1.0,
     "gx": 0.0, "gy": 0.0,
-    "last_update": 0
+    "last_update": 0,
+    "battery": "Unknown",
+    "battery_raw": 0,
+    "stability": 100
 }
 state_lock = threading.Lock()
 
@@ -146,6 +149,8 @@ def joycon_reader_worker():
     dev = None
     packet_count = 0
     last_imu_enable_time = 0
+    last_packet_times = []
+    last_keep_alive_time = 0
 
     def send_subcmd(d, subcmd, args):
         nonlocal packet_count
@@ -207,6 +212,11 @@ def joycon_reader_worker():
                 enable_imu(dev)
                 last_imu_enable_time = now
 
+            if now - last_keep_alive_time > 15.0:
+                # Periodic active keep-alive: send Player 1 LED command to reset Joy-Con auto-sleep timer
+                send_subcmd(dev, 0x30, [0x01])
+                last_keep_alive_time = now
+
             data = dev.read(49, timeout_ms=50)
             if data and len(data) >= 25 and data[0] in (0x21, 0x30):
                 raw_ax = struct.unpack('<h', bytes(data[13:15]))[0] * 0.000244
@@ -215,12 +225,47 @@ def joycon_reader_worker():
                 raw_gx = struct.unpack('<h', bytes(data[19:21]))[0] * 0.061
                 raw_gy = struct.unpack('<h', bytes(data[21:23]))[0] * 0.061
 
+                # Parse battery level from 3rd byte (data[2])
+                # Format: Upper 4 bits represent battery charge state (8=Full, 6=Medium, 4=Low, 2=Critical, 0=Empty)
+                battery_raw = (data[2] & 0xF0) >> 4
+                if battery_raw >= 8:
+                    battery_val = 100
+                elif battery_raw >= 6:
+                    battery_val = 70
+                elif battery_raw >= 4:
+                    battery_val = 30
+                elif battery_raw >= 2:
+                    battery_val = 10
+                else:
+                    battery_val = 0
+
+                # Calculate connection stability based on packet arrival interval consistency (jitter)
+                last_packet_times.append(now)
+                # Keep only last 1.5 seconds of packet logs
+                last_packet_times = [t for t in last_packet_times if now - t <= 1.5]
+                
+                recent_packets = [t for t in last_packet_times if now - t <= 1.0]
+                packet_rate = len(recent_packets) # expected to be 60 packets per second
+                
+                if len(recent_packets) >= 5:
+                    intervals = [recent_packets[i] - recent_packets[i-1] for i in range(1, len(recent_packets))]
+                    avg_jitter = sum(abs(inv - 0.0167) for inv in intervals) / len(intervals)
+                    # Convert average absolute jitter (deviation from 16.7ms) to stability percentage
+                    jitter_penalty = min(50.0, avg_jitter * 2000.0) # 25ms jitter results in 50% penalty
+                else:
+                    jitter_penalty = 0.0
+
+                stability = int(min(100, max(0, (packet_rate / 60.0) * 100 - jitter_penalty)))
+
                 with state_lock:
                     joycon_state["ax"] = raw_ax
                     joycon_state["ay"] = raw_ay
                     joycon_state["az"] = raw_az
                     joycon_state["gx"] = raw_gx
                     joycon_state["gy"] = raw_gy
+                    joycon_state["battery"] = battery_val
+                    joycon_state["battery_raw"] = battery_raw
+                    joycon_state["stability"] = stability
                     joycon_state["last_update"] = now
 
             elif data and len(data) > 0 and data[0] not in (0x21, 0x30):
@@ -267,6 +312,9 @@ class BridgeRequestHandler(BaseHTTPRequestHandler):
 
             elif parsed.path == '/get_sensor':
                 with state_lock:
+                    if time.time() - joycon_state["last_update"] > 1.0:
+                        joycon_state["connected"] = False
+                        joycon_state["stability"] = 0
                     snapshot = json.dumps(joycon_state)
                 self.wfile.write(snapshot.encode('utf-8'))
 

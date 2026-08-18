@@ -55,7 +55,7 @@ def main():
     # Attach window closing event handler
     window.events.closing += on_closing
 
-    webview.start(debug=False)
+    webview.start(debug=False, private_mode=False)
 
 if __name__ == "__main__":
     main()

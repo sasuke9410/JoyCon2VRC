@@ -87,6 +87,8 @@
     }
     .pill-offline { background: rgba(148, 163, 184, 0.15); color: #94a3b8; border: 1px solid #475569; }
     .pill-online { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid #10b981; }
+    .pill-warning { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid #f59e0b; }
+    .pill-danger { background: rgba(244, 63, 94, 0.15); color: #fb7185; border: 1px solid #f43f5e; }
 
     .modal-overlay {
       position: fixed;
@@ -237,8 +239,10 @@
         <button id="btnStartWizard" class="btn btn-wiz">キャリブレーション</button>
         <button id="btnVrcToggle" class="btn btn-vrc-toggle">VRChat連携: OFF</button>
       </div>
-      <div style="display: flex; align-items: center; gap: 0.75rem;">
+      <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
         <span id="connStatus" class="status-pill pill-offline">Joy-Con 接続待ち</span>
+        <span id="joyconBattery" class="status-pill pill-offline" style="display: none;">電池: --</span>
+        <span id="signalStability" class="status-pill pill-offline" style="display: none;">安定性: --%</span>
         <span id="vrcStatus" class="status-pill pill-offline" style="font-size: 0.75rem;">OSC: 停止中</span>
       </div>
     </div>
@@ -369,8 +373,8 @@
     let spmHistory = [0, 0, 0];
     let smoothedSpm = 0;
     let stateName = 'STOP';
-    let speedOutput = 0.0;
     let dynamicSpeedSmoothed = 0.0;
+    let lastStabilityRenderTime = 0;
 
     const historyAdyn = new Array(120).fill(0);
     const historyPitch = new Array(120).fill(0);
@@ -390,6 +394,8 @@
     const profileStatus = document.getElementById('profileStatus');
 
     const connStatus = document.getElementById('connStatus');
+    const joyconBattery = document.getElementById('joyconBattery');
+    const signalStability = document.getElementById('signalStability');
 
     const btnSpeedDynamic = document.getElementById('btnSpeedDynamic');
     const btnSpeedFixed = document.getElementById('btnSpeedFixed');
@@ -416,6 +422,33 @@
     const keyShift = document.getElementById('keyShift');
     const smoothedSpmText = document.getElementById('smoothedSpmText');
 
+    // Load configuration from localStorage on startup
+    if (localStorage.getItem('sensThreshold')) {
+      sensThreshold = parseFloat(localStorage.getItem('sensThreshold'));
+      sliderSens.value = sensThreshold;
+      lblSens.textContent = `${sensThreshold.toFixed(2)} G`;
+    }
+    if (localStorage.getItem('runSpmThreshold')) {
+      runSpmThreshold = parseInt(localStorage.getItem('runSpmThreshold'));
+      sliderRunSpm.value = runSpmThreshold;
+      lblRunSpm.textContent = `${runSpmThreshold} SPM`;
+    }
+    if (localStorage.getItem('holdTimeMs')) {
+      holdTimeMs = parseInt(localStorage.getItem('holdTimeMs'));
+      sliderHoldTime.value = holdTimeMs;
+      lblHoldTime.textContent = `${holdTimeMs} ms`;
+    }
+    if (localStorage.getItem('speedMode')) {
+      speedMode = localStorage.getItem('speedMode');
+      setTimeout(() => {
+        if (speedMode === 'dynamic') {
+          btnSpeedDynamic.click();
+        } else {
+          btnSpeedFixed.click();
+        }
+      }, 50);
+    }
+
     btnSpeedDynamic.onclick = () => {
       speedMode = 'dynamic';
       btnSpeedDynamic.style.background = 'var(--primary)';
@@ -423,6 +456,7 @@
       btnSpeedFixed.style.background = 'rgba(255,255,255,0.08)';
       btnSpeedFixed.style.color = 'var(--text-dim)';
       lblSpeedMode.textContent = '動的 (Dynamic)';
+      localStorage.setItem('speedMode', speedMode);
     };
 
     btnSpeedFixed.onclick = () => {
@@ -432,21 +466,25 @@
       btnSpeedDynamic.style.background = 'rgba(255,255,255,0.08)';
       btnSpeedDynamic.style.color = 'var(--text-dim)';
       lblSpeedMode.textContent = '固定 (0.5/1.0)';
+      localStorage.setItem('speedMode', speedMode);
     };
 
     sliderSens.oninput = (e) => {
       sensThreshold = parseFloat(e.target.value);
       lblSens.textContent = `${sensThreshold.toFixed(2)} G`;
+      localStorage.setItem('sensThreshold', sensThreshold);
     };
 
     sliderRunSpm.oninput = (e) => {
       runSpmThreshold = parseInt(e.target.value);
       lblRunSpm.textContent = `${runSpmThreshold} SPM`;
+      localStorage.setItem('runSpmThreshold', runSpmThreshold);
     };
 
     sliderHoldTime.oninput = (e) => {
       holdTimeMs = parseInt(e.target.value);
       lblHoldTime.textContent = `${holdTimeMs} ms`;
+      localStorage.setItem('holdTimeMs', holdTimeMs);
     };
 
     btnVrcToggle.onclick = () => {
@@ -488,15 +526,52 @@
             if (isConnected) {
               connStatus.className = 'status-pill pill-online';
               connStatus.textContent = 'Joy-Con(L) 接続中';
+              joyconBattery.style.display = 'inline-block';
+              signalStability.style.display = 'inline-block';
             } else {
               connStatus.className = 'status-pill pill-offline';
               connStatus.textContent = 'Joy-Con 接続待ち';
+              joyconBattery.style.display = 'none';
+              signalStability.style.display = 'none';
+              lastStabilityRenderTime = 0;
             }
           }
 
           if (isConnected) {
             rawAx = data.ax; rawAy = data.ay; rawAz = data.az;
             rawGx = data.gx; rawGy = data.gy;
+
+            // Render Battery Status
+            if (data.battery !== undefined) {
+              const pct = parseInt(data.battery);
+              let batClass = 'status-pill ';
+              if (pct >= 70) {
+                batClass += 'pill-online';
+              } else if (pct >= 30) {
+                batClass += 'pill-warning';
+              } else {
+                batClass += 'pill-danger';
+              }
+              joyconBattery.textContent = `電池: ${pct}%`;
+              joyconBattery.className = batClass;
+            }
+
+            // Render Signal/Connection Stability (throttled to 1000ms for readability)
+            if (data.stability !== undefined) {
+              const nowMs = performance.now();
+              if (nowMs - lastStabilityRenderTime > 1000) {
+                signalStability.textContent = `安定性: ${data.stability}%`;
+                if (data.stability >= 80) {
+                  signalStability.className = 'status-pill pill-online';
+                } else if (data.stability >= 50) {
+                  signalStability.className = 'status-pill pill-warning';
+                } else {
+                  signalStability.className = 'status-pill pill-danger';
+                }
+                lastStabilityRenderTime = nowMs;
+              }
+            }
+
             processMotion(performance.now());
           }
         }
@@ -523,6 +598,23 @@
       startWizardStep(1);
     };
 
+    // Helper to calculate a trimmed average (removing start delay / end slowdown outliers)
+    function getTrimmedAverage(array, trimLowPercent = 0.25, trimHighPercent = 0.10) {
+      if (!array || array.length === 0) return 0;
+      if (array.length <= 3) {
+        return array.reduce((a, b) => a + b, 0) / array.length;
+      }
+      const sorted = [...array].sort((a, b) => a - b);
+      const lowCut = Math.floor(sorted.length * trimLowPercent);
+      const highCut = Math.floor(sorted.length * trimHighPercent);
+      const trimmed = sorted.slice(lowCut, sorted.length - highCut);
+      
+      if (trimmed.length === 0) {
+        return sorted[Math.floor(sorted.length / 2)];
+      }
+      return trimmed.reduce((a, b) => a + b, 0) / trimmed.length;
+    }
+
     async function startWizardStep(step) {
       wizCollectedAdyn = [];
       wizCollectedSpm = [];
@@ -543,8 +635,8 @@
         wizInstruction.textContent = '通常ペースで 5秒間 足踏みしてください';
         await runCountdown(5);
 
-        const walkAdynAvg = wizCollectedAdyn.length > 0 ? (wizCollectedAdyn.reduce((a,b)=>a+b,0)/wizCollectedAdyn.length) : 0.40;
-        const walkSpmAvg = wizCollectedSpm.length > 0 ? (wizCollectedSpm.reduce((a,b)=>a+b,0)/wizCollectedSpm.length) : 120;
+        const walkAdynAvg = wizCollectedAdyn.length > 0 ? getTrimmedAverage(wizCollectedAdyn, 0.25, 0.10) : 0.40;
+        const walkSpmAvg = wizCollectedSpm.length > 0 ? getTrimmedAverage(wizCollectedSpm, 0.20, 0.10) : 120;
         window._wizWalkAdyn = walkAdynAvg;
         window._wizWalkSpm = walkSpmAvg;
 
@@ -559,7 +651,7 @@
         wizInstruction.textContent = '早いペースで 5秒間 足踏みしてください';
         await runCountdown(5);
 
-        const runSpmAvg = wizCollectedSpm.length > 0 ? (wizCollectedSpm.reduce((a,b)=>a+b,0)/wizCollectedSpm.length) : 170;
+        const runSpmAvg = wizCollectedSpm.length > 0 ? getTrimmedAverage(wizCollectedSpm, 0.20, 0.10) : 170;
 
         const calcSens = Math.max(0.20, Math.min(window._wizWalkAdyn * 0.6, 0.50));
         const calcRunSpm = Math.round((window._wizWalkSpm + runSpmAvg) / 2);
@@ -571,12 +663,15 @@
 
         sliderSens.value = sensThreshold;
         lblSens.textContent = `${sensThreshold.toFixed(2)} G`;
+        localStorage.setItem('sensThreshold', sensThreshold);
 
         sliderRunSpm.value = runSpmThreshold;
         lblRunSpm.textContent = `${runSpmThreshold} SPM`;
+        localStorage.setItem('runSpmThreshold', runSpmThreshold);
 
         sliderHoldTime.value = holdTimeMs;
         lblHoldTime.textContent = `${holdTimeMs} ms`;
+        localStorage.setItem('holdTimeMs', holdTimeMs);
 
         profileStatus.textContent = `Profile: Custom (${window._wizWalkSpm}/${runSpmAvg} SPM)`;
 
