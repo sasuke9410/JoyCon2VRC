@@ -168,15 +168,20 @@ class JoyConVRChatRunner:
                 total_accel = math.sqrt(self.filtered_ax**2 + self.filtered_ay**2 + self.filtered_az**2)
                 dyn_accel = abs(total_accel - 1.0)
 
+                # Thigh swing & impact verification
+                is_thigh_swing = abs(raw_gy) > 12.0 or abs(raw_gy) > 12.0
+                is_impact = dyn_accel > self.sens_threshold
+
                 if self.mode == "normal":
-                    if dyn_accel > self.sens_threshold:
+                    if is_impact and is_thigh_swing:
                         if self.last_step_time == 0:
+                            # 1st Step Hit (Candidate): Pending state
                             self.last_step_time = now
                             self.consecutive_steps = 1
                         else:
                             dt_step = now - self.last_step_time
-                            if 0.20 < dt_step < 1.2:
-                                raw_spm = int(60.0 / dt_step)
+                            if 0.18 <= dt_step <= 1.0:
+                                raw_spm = min(max(int(60.0 / dt_step), 60), 220)
                                 self.last_step_time = now
                                 self.consecutive_steps += 1
                                 self.cooldown_timer = now + self.hold_time_sec
@@ -185,36 +190,44 @@ class JoyConVRChatRunner:
                                 self.spm_history.append(raw_spm)
                                 self.smoothed_spm = sum(self.spm_history) // len(self.spm_history)
 
-                            elif dt_step >= 1.2:
+                            elif dt_step > 1.0:
                                 self.last_step_time = now
                                 self.consecutive_steps = 1
+                    elif self.last_step_time > 0 and (now - self.last_step_time > 1.0) and (now > self.cooldown_timer):
+                        self.consecutive_steps = 0
+                        self.last_step_time = 0
                 else:
                     delta_pitch = abs(self.estimated_pitch - self.baseline_pitch)
                     if delta_pitch > self.silent_angle_thresh:
                         self.cooldown_timer = now + 0.8
                         self.smoothed_spm = min(int(abs(raw_gy) * 0.8), 180)
-                        self.consecutive_steps = 1
+                        self.consecutive_steps = 2
                     else:
                         self.baseline_pitch = 0.98 * self.baseline_pitch + 0.02 * self.estimated_pitch
 
-                if now < self.cooldown_timer:
-                    if self.smoothed_spm >= self.run_spm_threshold:
-                        self.state_name = "RUN"
-                        self.speed_output = 1.0
-                        is_run = True
-                    else:
-                        self.state_name = "WALK"
-                        self.speed_output = 0.5
-                        is_run = False
-                    w_down = True
-                else:
-                    self.state_name = "STOP"
+                # State & Dynamic Speed Output (2-Step Gate Protected)
+                if now > self.cooldown_timer or self.consecutive_steps < 2:
+                    self.state_name = "READY" if self.consecutive_steps == 1 else "STOP"
                     self.speed_output = 0.0
-                    self.smoothed_spm = 0
-                    self.consecutive_steps = 0
-                    self.spm_history = [0, 0, 0]
+                    if now > self.cooldown_timer:
+                        self.smoothed_spm = 0
+                        self.consecutive_steps = 0
+                        self.spm_history = [0, 0, 0]
                     is_run = False
                     w_down = False
+                else:
+                    is_run_cond = self.smoothed_spm >= self.run_spm_threshold
+                    self.state_name = "RUN" if is_run_cond else "WALK"
+
+                    # Dynamic Speed Calculation:
+                    norm_spm = min(max((self.smoothed_spm - 70) / (self.run_spm_threshold - 70), 0.0), 1.0)
+                    base_speed = 0.25 + 0.60 * norm_spm
+                    intensity = min(max(dyn_accel / self.sens_threshold, 0.85), 1.25)
+                    target_speed = 1.0 if is_run_cond else min(max(base_speed * intensity, 0.20), 0.95)
+
+                    self.speed_output = round(target_speed, 2)
+                    is_run = is_run_cond or self.speed_output >= 0.98
+                    w_down = self.speed_output > 0.05
 
                 self.osc.send_movement(self.speed_output, is_run)
                 set_keys(w_down, is_run)

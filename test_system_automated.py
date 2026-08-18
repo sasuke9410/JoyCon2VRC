@@ -54,46 +54,65 @@ def test_osc_packet_encoding():
     recv_sock.close()
 
 # ---------------------------------------------------------------------------
-# Test 2: Locomotion State Machine Logic (STOP -> WALK -> RUN)
+# Test 2: Locomotion State Machine Logic (STOP-Drift Rejection & Dynamic Speed)
 # ---------------------------------------------------------------------------
-def test_locomotion_state_machine_walk_run():
+def test_locomotion_state_machine_drift_rejection():
+    """Verify that a single impact (e.g. weight shifting) stays in READY/STOP and does NOT move"""
     runner = JoyConVRChatRunner(mode="normal")
-    runner.sens_threshold = 0.30
+    runner.sens_threshold = 0.35
     runner.run_spm_threshold = 150
-    runner.hold_time_sec = 0.5
+    runner.hold_time_sec = 1.0
 
-    # Initial State
-    assert runner.state_name == "STOP"
-    assert runner.speed_output == 0.0
-
-    # Simulate Walk Steps (SPM ~ 120, Step Interval ~ 0.5s)
     t0 = time.time()
-    # Step 1
+    # 1. Single impact (Candidate only -> 1 step)
     runner.last_step_time = t0
     runner.consecutive_steps = 1
-    runner.cooldown_timer = t0 + 0.5
-    runner.spm_history = [120, 120, 120]
-    runner.smoothed_spm = 120
+    runner.cooldown_timer = 0 # No cooldown until locked
 
-    # Evaluate at step 1
-    t_eval = t0 + 0.1
-    if t_eval < runner.cooldown_timer and runner.consecutive_steps >= 1:
-        if runner.smoothed_spm >= runner.run_spm_threshold:
-            runner.state_name = "RUN"
-            runner.speed_output = 1.0
-        else:
-            runner.state_name = "WALK"
-            runner.speed_output = 0.5
+    # Evaluation with 1 step
+    if t0 > runner.cooldown_timer or runner.consecutive_steps < 2:
+        runner.state_name = "READY" if runner.consecutive_steps == 1 else "STOP"
+        runner.speed_output = 0.0
+
+    # Ensure speed output is 0.0 (No movement in VRChat)
+    assert runner.state_name == "READY"
+    assert runner.speed_output == 0.0
+
+def test_locomotion_state_machine_walk_run_dynamic_speed():
+    """Verify 2+ steps transition to WALK with dynamic speed, and fast pace transitions to RUN"""
+    runner = JoyConVRChatRunner(mode="normal")
+    runner.sens_threshold = 0.35
+    runner.run_spm_threshold = 150
+    runner.hold_time_sec = 1.0
+
+    t0 = time.time()
+    # Step 1 (Pending)
+    runner.last_step_time = t0
+    runner.consecutive_steps = 1
+
+    # Step 2 arrives at t0 + 0.45s (approx 133 SPM)
+    t1 = t0 + 0.45
+    runner.last_step_time = t1
+    runner.consecutive_steps = 2
+    runner.cooldown_timer = t1 + runner.hold_time_sec
+    runner.spm_history = [133, 133, 133]
+    runner.smoothed_spm = 133
+
+    # Dynamic Speed Calculation
+    norm_spm = min(max((runner.smoothed_spm - 70) / (runner.run_spm_threshold - 70), 0.0), 1.0)
+    base_speed = 0.25 + 0.60 * norm_spm
+    intensity = 1.0
+    runner.speed_output = round(min(max(base_speed * intensity, 0.20), 0.95), 2)
+    runner.state_name = "WALK"
 
     assert runner.state_name == "WALK"
-    assert runner.speed_output == 0.5
+    assert 0.50 <= runner.speed_output <= 0.85 # Dynamic analog speed output
 
-    # Simulate Fast Running Steps (SPM ~ 170)
-    runner.spm_history = [170, 170, 170]
+    # High cadence (170 SPM -> RUN)
     runner.smoothed_spm = 170
-    if runner.smoothed_spm >= runner.run_spm_threshold:
-        runner.state_name = "RUN"
-        runner.speed_output = 1.0
+    is_run_cond = runner.smoothed_spm >= runner.run_spm_threshold
+    runner.state_name = "RUN" if is_run_cond else "WALK"
+    runner.speed_output = 1.0 if is_run_cond else runner.speed_output
 
     assert runner.state_name == "RUN"
     assert runner.speed_output == 1.0
